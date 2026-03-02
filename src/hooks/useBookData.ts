@@ -1,5 +1,6 @@
 import { useState, useMemo, useCallback } from 'react';
 import type { BookRow } from '../types/book';
+import type { ParseResult, RawSheetData } from '../parsers/index';
 import { useLocalStorage } from './useLocalStorage';
 import { fetchGoogleBooks } from '../services/googleBooks';
 
@@ -21,25 +22,28 @@ const DEFAULT_FILTERS: Filters = {
 
 export function useBookData() {
   const [books, setBooks] = useState<BookRow[]>([]);
+  const [rawSheet, setRawSheet] = useState<RawSheetData | null>(null);
   const [flaggedISBNs, setFlaggedISBNs] = useLocalStorage<string[]>('flagged-isbns', []);
   const [filters, setFilters] = useState<Filters>(DEFAULT_FILTERS);
 
-  const loadBooks = useCallback((newBooks: BookRow[]) => {
+  const loadBooks = useCallback((result: ParseResult | BookRow[]) => {
+    const newBooks: BookRow[] = Array.isArray(result) ? result : result.books;
+    const newRawSheet: RawSheetData | null = Array.isArray(result) ? null : result.rawSheet;
+
     const flaggedSet = new Set(flaggedISBNs);
     const withFlags = newBooks.map(b => ({
       ...b,
       flagged: flaggedSet.has(b.isbn),
     }));
     setBooks(withFlags);
+    if (newRawSheet) setRawSheet(newRawSheet);
     setFilters(DEFAULT_FILTERS);
 
-    // Background: enrich books that have no category from the spreadsheet.
-    // Also run for ALL books so ratings can be fetched — category is only written back if blank.
+    // Background: Google Books enrichment (category + rating)
     for (const book of withFlags) {
       fetchGoogleBooks(book.isbn).then(async data => {
         let subjects = data?.subjects ?? [];
 
-        // Fallback: if ISBN search returned no subjects, try title search on OL
         if (!subjects.length && book.title) {
           try {
             const q = encodeURIComponent(book.title.slice(0, 40));
@@ -48,7 +52,6 @@ export function useBookData() {
             );
             if (res.ok) {
               const json = await res.json() as { docs?: Array<{ subject?: string[]; isbn?: string[] }> };
-              // Only use if one of the results matches our ISBN
               const match = json.docs?.find(d => d.isbn?.includes(book.isbn));
               if (match?.subject?.length) subjects = match.subject;
             }
@@ -83,6 +86,12 @@ export function useBookData() {
     );
   }, [setFlaggedISBNs]);
 
+  const updateBook = useCallback((isbn: string, patch: Partial<BookRow>) => {
+    setBooks(prev =>
+      prev.map(b => b.isbn === isbn ? { ...b, ...patch } : b),
+    );
+  }, []);
+
   const filteredBooks = useMemo(() => {
     const search = filters.search.toLowerCase();
     const minMargin = filters.minMargin !== '' ? parseFloat(filters.minMargin) : null;
@@ -110,11 +119,13 @@ export function useBookData() {
 
   return {
     books,
+    rawSheet,
     filteredBooks,
     filters,
     setFilters,
     loadBooks,
     toggleFlag,
+    updateBook,
     categories,
     hasHachette,
   };

@@ -16,4 +16,7 @@ export interface BookRow {
   cartonQty: number | null;
   distributor: Distributor;
   flagged: boolean;
+  // Order pack fields
+  orderCartons: number;
+  buyPriceOverride: number | null;
 }

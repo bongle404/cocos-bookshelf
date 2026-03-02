@@ -16,6 +16,7 @@ interface Props {
   books: BookRow[];
   showCarton: boolean;
   onToggleFlag: (isbn: string) => void;
+  onUpdateBook: (isbn: string, patch: Partial<BookRow>) => void;
 }
 
 const col = createColumnHelper<BookRow>();
@@ -94,7 +95,80 @@ function RatingCell({ isbn }: { isbn: string }) {
   );
 }
 
-export function BookTable({ books, showCarton, onToggleFlag }: Props) {
+function OrderQtyCell({
+  book,
+  onUpdate,
+}: {
+  book: BookRow;
+  onUpdate: (isbn: string, patch: Partial<BookRow>) => void;
+}) {
+  const [val, setVal] = useState(String(book.orderCartons));
+
+  function commit() {
+    const n = parseInt(val, 10);
+    if (!isNaN(n) && n >= 0) {
+      onUpdate(book.isbn, { orderCartons: n });
+    } else {
+      setVal(String(book.orderCartons));
+    }
+  }
+
+  return (
+    <input
+      type="number"
+      min="0"
+      value={val}
+      onChange={e => setVal(e.target.value)}
+      onBlur={commit}
+      onKeyDown={e => { if (e.key === 'Enter') commit(); }}
+      className="w-14 text-xs border border-gray-200 rounded px-1.5 py-0.5 text-center focus:outline-none focus:ring-1 focus:ring-blue-300"
+    />
+  );
+}
+
+function BuyPriceCell({
+  book,
+  onUpdate,
+}: {
+  book: BookRow;
+  onUpdate: (isbn: string, patch: Partial<BookRow>) => void;
+}) {
+  const effective = book.buyPriceOverride ?? book.buyPrice;
+  const [val, setVal] = useState(effective !== null ? String(effective) : '');
+
+  function commit() {
+    if (val.trim() === '') {
+      onUpdate(book.isbn, { buyPriceOverride: null });
+      return;
+    }
+    const n = parseFloat(val);
+    if (!isNaN(n) && n >= 0) {
+      onUpdate(book.isbn, { buyPriceOverride: Math.round(n * 100) / 100 });
+    } else {
+      const eff = book.buyPriceOverride ?? book.buyPrice;
+      setVal(eff !== null ? String(eff) : '');
+    }
+  }
+
+  return (
+    <div className="relative">
+      <span className="absolute left-1.5 top-1/2 -translate-y-1/2 text-gray-400 text-xs">$</span>
+      <input
+        type="number"
+        min="0"
+        step="0.01"
+        value={val}
+        onChange={e => setVal(e.target.value)}
+        onBlur={commit}
+        onKeyDown={e => { if (e.key === 'Enter') commit(); }}
+        placeholder="—"
+        className="w-20 text-xs border border-gray-200 rounded pl-4 pr-1 py-0.5 focus:outline-none focus:ring-1 focus:ring-blue-300"
+      />
+    </div>
+  );
+}
+
+export function BookTable({ books, showCarton, onToggleFlag, onUpdateBook }: Props) {
   const [sorting, setSorting] = useState<SortingState>([]);
 
   const columns = [
@@ -185,6 +259,24 @@ export function BookTable({ books, showCarton, onToggleFlag }: Props) {
         ]
       : []),
     col.display({
+      id: 'orderCartons',
+      header: 'Order Qty',
+      size: 80,
+      cell: info => (
+        <OrderQtyCell book={info.row.original} onUpdate={onUpdateBook} />
+      ),
+      enableSorting: false,
+    }),
+    col.display({
+      id: 'buyPriceOverride',
+      header: 'Cost/unit',
+      size: 90,
+      cell: info => (
+        <BuyPriceCell book={info.row.original} onUpdate={onUpdateBook} />
+      ),
+      enableSorting: false,
+    }),
+    col.display({
       id: 'rating',
       header: 'Rating',
       size: 110,
@@ -264,7 +356,6 @@ export function BookTable({ books, showCarton, onToggleFlag }: Props) {
         )}
       </div>
 
-      {/* Pagination */}
       {pageCount > 1 && (
         <div className="flex items-center justify-between px-4 py-3 border-t bg-white text-sm text-gray-600">
           <span>

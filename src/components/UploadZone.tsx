@@ -1,10 +1,10 @@
 import { useState, useRef } from 'react';
 import type { DragEvent, ChangeEvent } from 'react';
 import { parseFile } from '../parsers';
-import type { BookRow } from '../types/book';
+import type { ParseResult } from '../parsers';
 
 interface Props {
-  onLoad: (books: BookRow[]) => void;
+  onLoad: (result: ParseResult) => void;
 }
 
 export function UploadZone({ onLoad }: Props) {
@@ -17,8 +17,8 @@ export function UploadZone({ onLoad }: Props) {
     setError(null);
     setLoading(true);
     try {
-      const books = await parseFile(file);
-      onLoad(books);
+      const result = await parseFile(file);
+      onLoad(result);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {

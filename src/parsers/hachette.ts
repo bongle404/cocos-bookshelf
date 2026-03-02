@@ -1,6 +1,7 @@
 import type { WorkSheet } from 'xlsx';
 import { utils } from 'xlsx';
 import type { BookRow } from '../types/book';
+import type { ParseResult, CellValue } from './index';
 
 function excelSerialToISO(serial: number): string {
   const d = new Date((serial - 25569) * 86400 * 1000);
@@ -18,9 +19,9 @@ function normaliseFormat(ed: string): BookRow['format'] {
   }
 }
 
-export function parseHachette(sheet: WorkSheet): BookRow[] {
+export function parseHachette(sheet: WorkSheet): ParseResult {
   const allRows = utils.sheet_to_json<unknown[]>(sheet, { header: 1, defval: null });
-  if (allRows.length < 2) return [];
+  if (allRows.length < 2) return { books: [], rawSheet: { headers: [], rows: [], isbnKey: 'ISBN' } };
 
   // Find header row dynamically — it's the row where col A = 'ISBN'
   let headerRowIdx = -1;
@@ -56,15 +57,14 @@ export function parseHachette(sheet: WorkSheet): BookRow[] {
   const titleIdx   = col('Title');
   const authorIdx  = col(['Author', 'Contributor']);
   const edIdx      = col(['Ed', 'Format', 'Bind']);
-  // Category column varies wildly across Hachette files — try all known names
   const categoryIdx = col(['BIC', 'Subject', 'Category', 'BISAC', 'Genre', 'Subject Code', 'Subject Desc']);
   const rrpIdx     = col(['RRP', 'RRP (inc)', 'Price']);
-  // 'Offer GST Inc' is blank in Hachette — buyPrice will always be null
   const stockIdx   = col(['Remainder QTY', 'Remainder Qty', 'SOH', 'Stock', 'QTY']);
   const cartonIdx  = col(['Carton Qty', 'Carton QTY', 'Carton']);
   const pubDateIdx = col(['Pub Date', 'Publication Date', 'Pub']);
 
-  const rows: BookRow[] = [];
+  const books: BookRow[] = [];
+  const rawRows: Record<string, CellValue>[] = [];
 
   for (const row of dataRows) {
     const isbnRaw = row[isbnIdx];
@@ -73,6 +73,14 @@ export function parseHachette(sheet: WorkSheet): BookRow[] {
 
     const isbn = String(isbnRaw).trim().replace(/\D/g, '');
     if (isbn.length < 10) continue; // skip non-ISBN rows
+
+    // Collect raw row keyed by header name
+    const rawRow: Record<string, CellValue> = {};
+    headers.forEach((h, i) => {
+      const v = row[i];
+      rawRow[h] = (v === undefined ? null : v) as CellValue;
+    });
+    rawRows.push(rawRow);
 
     const title      = String(row[titleIdx]   ?? '').trim();
     const author     = String(row[authorIdx]  ?? '').trim();
@@ -85,7 +93,6 @@ export function parseHachette(sheet: WorkSheet): BookRow[] {
         ? Math.round((row[rrpIdx] as number) * 100) / 100
         : null;
 
-    // Offer GST Inc is blank → buyPrice is always null
     const buyPrice: null = null;
     const marginPct: null = null;
 
@@ -107,7 +114,7 @@ export function parseHachette(sheet: WorkSheet): BookRow[] {
       pubYear = parseInt(pubRaw.slice(0, 4), 10) || null;
     }
 
-    rows.push({
+    books.push({
       isbn,
       title,
       author,
@@ -123,8 +130,16 @@ export function parseHachette(sheet: WorkSheet): BookRow[] {
       cartonQty,
       distributor: 'hachette',
       flagged: false,
+      orderCartons: 1,
+      buyPriceOverride: null,
     });
   }
 
-  return rows;
+  // Determine which header is the ISBN key
+  const isbnKey = headers[isbnIdx] ?? 'ISBN';
+
+  return {
+    books,
+    rawSheet: { headers, rows: rawRows, isbnKey },
+  };
 }

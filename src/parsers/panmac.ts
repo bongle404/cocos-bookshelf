@@ -1,6 +1,7 @@
 import type { WorkSheet } from 'xlsx';
 import { utils } from 'xlsx';
 import type { BookRow } from '../types/book';
+import type { ParseResult, CellValue } from './index';
 
 function excelSerialToISO(serial: number): string {
   const d = new Date((serial - 25569) * 86400 * 1000);
@@ -16,10 +17,9 @@ function normaliseFormat(raw: string): BookRow['format'] {
   return 'Other';
 }
 
-export function parsePanMac(sheet: WorkSheet): BookRow[] {
-  // sheet_to_json with header:1 gives rows as arrays; first row is headers
+export function parsePanMac(sheet: WorkSheet): ParseResult {
   const allRows = utils.sheet_to_json<unknown[]>(sheet, { header: 1, defval: null });
-  if (allRows.length < 2) return [];
+  if (allRows.length < 2) return { books: [], rawSheet: { headers: [], rows: [], isbnKey: 'ISBN' } };
 
   const headers = (allRows[0] as unknown[]).map(h => String(h ?? '').trim());
   const dataRows = allRows.slice(1) as unknown[][];
@@ -36,7 +36,8 @@ export function parsePanMac(sheet: WorkSheet): BookRow[] {
   const stockIdx = col('SOH');
   const pubDateIdx = col('Publication Date');
 
-  const rows: BookRow[] = [];
+  const books: BookRow[] = [];
+  const rawRows: Record<string, CellValue>[] = [];
 
   for (const row of dataRows) {
     const isbnRaw = row[iIdx];
@@ -44,6 +45,15 @@ export function parsePanMac(sheet: WorkSheet): BookRow[] {
     if (typeof isbnRaw !== 'number' || isbnRaw <= 9_000_000_000_000) continue;
 
     const isbn = String(Math.round(isbnRaw));
+
+    // Collect raw row keyed by header name
+    const rawRow: Record<string, CellValue> = {};
+    headers.forEach((h, i) => {
+      const v = row[i];
+      rawRow[h] = (v === undefined ? null : v) as CellValue;
+    });
+    rawRows.push(rawRow);
+
     const title = String(row[titleIdx] ?? '').trim();
     const author = String(row[authorIdx] ?? '').trim();
     const bindRaw = String(row[bindIdx] ?? '').trim();
@@ -76,7 +86,7 @@ export function parsePanMac(sheet: WorkSheet): BookRow[] {
       pubYear = parseInt(pubRaw.slice(0, 4), 10) || null;
     }
 
-    rows.push({
+    books.push({
       isbn,
       title,
       author,
@@ -92,8 +102,15 @@ export function parsePanMac(sheet: WorkSheet): BookRow[] {
       cartonQty: null,
       distributor: 'panmac',
       flagged: false,
+      orderCartons: 1,
+      buyPriceOverride: null,
     });
   }
 
-  return rows;
+  const isbnKey = headers[iIdx] ?? 'ISBN';
+
+  return {
+    books,
+    rawSheet: { headers, rows: rawRows, isbnKey },
+  };
 }

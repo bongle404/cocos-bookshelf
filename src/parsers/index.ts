@@ -3,6 +3,19 @@ import type { BookRow, Distributor } from '../types/book';
 import { parsePanMac } from './panmac';
 import { parseHachette } from './hachette';
 
+export type CellValue = string | number | boolean | null;
+
+export interface RawSheetData {
+  headers: string[];
+  rows: Record<string, CellValue>[];
+  isbnKey: string;
+}
+
+export interface ParseResult {
+  books: BookRow[];
+  rawSheet: RawSheetData;
+}
+
 function detectFormat(workbook: XLSX.WorkBook): Distributor {
   if (workbook.SheetNames.includes('Current List')) return 'panmac';
 
@@ -17,7 +30,7 @@ function detectFormat(workbook: XLSX.WorkBook): Distributor {
   return 'unknown';
 }
 
-export async function parseFile(file: File): Promise<BookRow[]> {
+export async function parseFile(file: File): Promise<ParseResult> {
   const buffer = await file.arrayBuffer();
   const workbook = XLSX.read(buffer, { type: 'array', cellDates: false });
 
