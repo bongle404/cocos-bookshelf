@@ -17,7 +17,38 @@ export function ExportButton({ books, rawSheet, sellThroughPct }: Props) {
     const wb = XLSX.utils.book_new();
     let ws: XLSX.WorkSheet;
 
-    if (rawSheet && rawSheet.rows.length > 0) {
+    const isAllenUnwin = flagged[0]?.distributor === 'allenunwin';
+
+    if (rawSheet && rawSheet.rows.length > 0 && isAllenUnwin) {
+      // Allen & Unwin: preserve exact original columns, fill OFFER + ORDER in place
+      const bookMap = new Map(flagged.map(b => [b.isbn, b]));
+
+      const filteredRaw = rawSheet.rows.filter(row => {
+        const isbn = String(row[rawSheet.isbnKey] ?? '').trim().replace(/\D/g, '');
+        return bookMap.has(isbn);
+      });
+
+      const offerIdx = rawSheet.headers.findIndex(h => h.toUpperCase() === 'OFFER');
+      const orderIdx = rawSheet.headers.findIndex(h => h.toUpperCase() === 'ORDER');
+
+      const dataRows: CellValue[][] = filteredRaw.map(rawRow => {
+        const isbn = String(rawRow[rawSheet.isbnKey] ?? '').trim().replace(/\D/g, '');
+        const book = bookMap.get(isbn)!;
+
+        const units = book.orderCartons ?? 1;
+        const offer = book.buyPriceOverride ?? null;
+
+        const values: CellValue[] = rawSheet.headers.map(h => rawRow[h] ?? null);
+        if (offerIdx !== -1 && offer !== null) values[offerIdx] = offer;
+        if (orderIdx !== -1) values[orderIdx] = units;
+
+        return values;
+      });
+
+      ws = XLSX.utils.aoa_to_sheet([rawSheet.headers, ...dataRows]);
+      const outSheetName = rawSheet.sheetName ?? 'Order';
+      XLSX.utils.book_append_sheet(wb, ws, outSheetName);
+    } else if (rawSheet && rawSheet.rows.length > 0) {
       const bookMap = new Map(flagged.map(b => [b.isbn, b]));
 
       const filteredRaw = rawSheet.rows.filter(row => {
@@ -87,6 +118,7 @@ export function ExportButton({ books, rawSheet, sellThroughPct }: Props) {
       ) / 100;
 
       ws = XLSX.utils.aoa_to_sheet([allHeaders, ...dataRows, summaryRow]);
+      XLSX.utils.book_append_sheet(wb, ws, rawSheet.sheetName ?? 'Order');
     } else {
       // Fallback: no rawSheet
       const headers = [
@@ -109,9 +141,9 @@ export function ExportButton({ books, rawSheet, sellThroughPct }: Props) {
         ];
       });
       ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+      XLSX.utils.book_append_sheet(wb, ws, 'Order');
     }
 
-    XLSX.utils.book_append_sheet(wb, ws, 'Order');
     XLSX.writeFile(wb, `order-${new Date().toISOString().slice(0, 10)}.xlsx`);
   }
 

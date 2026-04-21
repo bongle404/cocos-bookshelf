@@ -24,9 +24,9 @@ function parseDMY(dateStr: string): { pubDate: string; pubYear: number | null } 
   return { pubDate: dateStr, pubYear: null };
 }
 
-export function parseAllenUnwin(sheet: WorkSheet): ParseResult {
+export function parseAllenUnwin(sheet: WorkSheet, sheetName: string): ParseResult {
   const allRows = utils.sheet_to_json<unknown[]>(sheet, { header: 1, defval: null });
-  if (allRows.length < 2) return { books: [], rawSheet: { headers: [], rows: [], isbnKey: 'ISBN' } };
+  if (allRows.length < 2) return { books: [], rawSheet: { headers: [], rows: [], isbnKey: 'ISBN', sheetName } };
 
   const headers = (allRows[0] as unknown[]).map(h => String(h ?? '').trim());
   const dataRows = allRows.slice(1) as unknown[][];
@@ -93,7 +93,6 @@ export function parseAllenUnwin(sheet: WorkSheet): ParseResult {
     if (typeof pubRaw === 'string' && pubRaw) {
       ({ pubDate, pubYear } = parseDMY(pubRaw));
     } else if (typeof pubRaw === 'number') {
-      // Excel serial date
       const d = new Date((pubRaw - 25569) * 86400 * 1000);
       pubDate = d.toISOString().split('T')[0];
       pubYear = d.getUTCFullYear();
@@ -122,6 +121,6 @@ export function parseAllenUnwin(sheet: WorkSheet): ParseResult {
 
   return {
     books,
-    rawSheet: { headers, rows: rawRows, isbnKey: headers[isbnIdx] ?? 'ISBN' },
+    rawSheet: { headers, rows: rawRows, isbnKey: headers[isbnIdx] ?? 'ISBN', sheetName },
   };
 }

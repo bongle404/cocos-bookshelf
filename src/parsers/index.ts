@@ -10,6 +10,7 @@ export interface RawSheetData {
   headers: string[];
   rows: Record<string, CellValue>[];
   isbnKey: string;
+  sheetName?: string;
 }
 
 export interface ParseResult {
@@ -62,9 +63,9 @@ export async function parseFile(file: File): Promise<ParseResult> {
   }
 
   if (distributor === 'allenunwin') {
-    // Use first sheet (could be "Kids & YA", "Fiction", etc.)
-    const sheet = workbook.Sheets[workbook.SheetNames[0]];
-    return parseAllenUnwin(sheet);
+    const sheetName = workbook.SheetNames[0];
+    const sheet = workbook.Sheets[sheetName];
+    return parseAllenUnwin(sheet, sheetName);
   }
 
   throw new Error(
