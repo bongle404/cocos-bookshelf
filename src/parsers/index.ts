@@ -2,6 +2,7 @@ import * as XLSX from 'xlsx';
 import type { BookRow, Distributor } from '../types/book';
 import { parsePanMac } from './panmac';
 import { parseHachette } from './hachette';
+import { parseAllenUnwin } from './allenunwin';
 
 export type CellValue = string | number | boolean | null;
 
@@ -27,6 +28,20 @@ function detectFormat(workbook: XLSX.WorkBook): Distributor {
     }
   }
 
+  // Allen & Unwin: any sheet where row 1 col A = "ISBN" and col B header contains "ALLEN"
+  for (const sheetName of workbook.SheetNames) {
+    const sheet = workbook.Sheets[sheetName];
+    const rows = XLSX.utils.sheet_to_json<unknown[]>(sheet, { header: 1, defval: null });
+    if (rows.length > 0) {
+      const headers = rows[0] as unknown[];
+      const col0 = String(headers[0] ?? '').trim().toLowerCase();
+      const col1 = String(headers[1] ?? '').trim().toLowerCase();
+      if (col0 === 'isbn' && col1.includes('allen')) {
+        return 'allenunwin';
+      }
+    }
+  }
+
   return 'unknown';
 }
 
@@ -46,7 +61,13 @@ export async function parseFile(file: File): Promise<ParseResult> {
     return parseHachette(sheet);
   }
 
+  if (distributor === 'allenunwin') {
+    // Use first sheet (could be "Kids & YA", "Fiction", etc.)
+    const sheet = workbook.Sheets[workbook.SheetNames[0]];
+    return parseAllenUnwin(sheet);
+  }
+
   throw new Error(
-    'Unrecognised file format. Expected a Pan Mac ("Current List" sheet) or Hachette ("Sheet1" starting with "Hachette") spreadsheet.',
+    'Unrecognised file format. Expected a Pan Mac ("Current List" sheet), Hachette ("Sheet1" starting with "Hachette"), or Allen & Unwin spreadsheet.',
   );
 }

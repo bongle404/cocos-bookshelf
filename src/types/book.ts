@@ -1,4 +1,4 @@
-export type Distributor = 'panmac' | 'hachette' | 'unknown';
+export type Distributor = 'panmac' | 'hachette' | 'allenunwin' | 'unknown';
 
 export interface BookRow {
   isbn: string;
