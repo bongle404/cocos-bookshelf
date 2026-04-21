@@ -10,18 +10,19 @@ interface Props {
 
 export function ExportButton({ books, rawSheet, sellThroughPct }: Props) {
   const flagged = books.filter(b => b.flagged);
+  const exportSet = flagged.length > 0 ? flagged : books;
 
   function download() {
-    if (flagged.length === 0) return;
+    if (exportSet.length === 0) return;
 
     const wb = XLSX.utils.book_new();
     let ws: XLSX.WorkSheet;
 
-    const isAllenUnwin = flagged[0]?.distributor === 'allenunwin';
+    const isAllenUnwin = exportSet[0]?.distributor === 'allenunwin';
 
     if (rawSheet && rawSheet.rows.length > 0 && isAllenUnwin) {
       // Allen & Unwin: preserve exact original columns, fill OFFER + ORDER in place
-      const bookMap = new Map(flagged.map(b => [b.isbn, b]));
+      const bookMap = new Map(exportSet.map(b => [b.isbn, b]));
 
       const filteredRaw = rawSheet.rows.filter(row => {
         const isbn = String(row[rawSheet.isbnKey] ?? '').trim().replace(/\D/g, '');
@@ -49,7 +50,7 @@ export function ExportButton({ books, rawSheet, sellThroughPct }: Props) {
       const outSheetName = rawSheet.sheetName ?? 'Order';
       XLSX.utils.book_append_sheet(wb, ws, outSheetName);
     } else if (rawSheet && rawSheet.rows.length > 0) {
-      const bookMap = new Map(flagged.map(b => [b.isbn, b]));
+      const bookMap = new Map(exportSet.map(b => [b.isbn, b]));
 
       const filteredRaw = rawSheet.rows.filter(row => {
         const isbn = String(row[rawSheet.isbnKey] ?? '').trim().replace(/\D/g, '');
@@ -127,7 +128,7 @@ export function ExportButton({ books, rawSheet, sellThroughPct }: Props) {
         'Order Cartons', 'Units Ordered', 'Cost/unit (AUD)', 'Total Cost (AUD)',
         'Est. Sell-Through %', 'Revenue Projection (AUD)',
       ];
-      const rows = flagged.map(b => {
+      const rows = exportSet.map(b => {
         const units = (b.orderCartons ?? 1) * (b.cartonQty ?? 1);
         const cost = b.buyPriceOverride ?? b.buyPrice;
         const totalCost = cost !== null ? Math.round(units * cost * 100) / 100 : '';
@@ -147,13 +148,17 @@ export function ExportButton({ books, rawSheet, sellThroughPct }: Props) {
     XLSX.writeFile(wb, `order-${new Date().toISOString().slice(0, 10)}.xlsx`);
   }
 
+  const label = flagged.length > 0
+    ? `⬇ Export ${flagged.length} flagged`
+    : `⬇ Export all (${books.length})`;
+
   return (
     <button
       onClick={download}
-      disabled={flagged.length === 0}
+      disabled={books.length === 0}
       className="flex items-center gap-2 px-3 py-1.5 rounded text-sm font-medium bg-green-600 text-white hover:bg-green-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
     >
-      ⬇ Export Order XLSX {flagged.length > 0 ? `(${flagged.length} flagged)` : ''}
+      {label}
     </button>
   );
 }
