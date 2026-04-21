@@ -170,6 +170,7 @@ function BuyPriceCell({
 
 export function BookTable({ books, showCarton, onToggleFlag, onUpdateBook }: Props) {
   const [sorting, setSorting] = useState<SortingState>([]);
+  const isAllenUnwin = books[0]?.distributor === 'allenunwin';
 
   const columns = [
     col.accessor('flagged', {
@@ -269,7 +270,7 @@ export function BookTable({ books, showCarton, onToggleFlag, onUpdateBook }: Pro
     }),
     col.display({
       id: 'buyPriceOverride',
-      header: 'Cost/unit',
+      header: isAllenUnwin ? 'Offer Price' : 'Cost/unit',
       size: 90,
       cell: info => (
         <BuyPriceCell book={info.row.original} onUpdate={onUpdateBook} />

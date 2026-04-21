@@ -31,6 +31,7 @@ export function ExportButton({ books, rawSheet, sellThroughPct }: Props) {
 
       const offerIdx = rawSheet.headers.findIndex(h => h.toUpperCase() === 'OFFER');
       const orderIdx = rawSheet.headers.findIndex(h => h.toUpperCase() === 'ORDER');
+      const retailIdx = rawSheet.headers.findIndex(h => h.toLowerCase().includes('retail price'));
 
       const dataRows: CellValue[][] = filteredRaw.map(rawRow => {
         const isbn = String(rawRow[rawSheet.isbnKey] ?? '').trim().replace(/\D/g, '');
@@ -40,7 +41,10 @@ export function ExportButton({ books, rawSheet, sellThroughPct }: Props) {
         const offer = book.buyPriceOverride ?? null;
 
         const values: CellValue[] = rawSheet.headers.map(h => rawRow[h] ?? null);
-        if (offerIdx !== -1 && offer !== null) values[offerIdx] = offer;
+        if (offer !== null) {
+          if (offerIdx !== -1) values[offerIdx] = offer;
+          if (retailIdx !== -1) values[retailIdx] = offer;
+        }
         if (orderIdx !== -1) values[orderIdx] = units;
 
         return values;
