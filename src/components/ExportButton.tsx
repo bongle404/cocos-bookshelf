@@ -149,7 +149,16 @@ export function ExportButton({ books, rawSheet, sellThroughPct }: Props) {
       XLSX.utils.book_append_sheet(wb, ws, 'Order');
     }
 
-    XLSX.writeFile(wb, `order-${new Date().toISOString().slice(0, 10)}.xlsx`);
+    const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+    const blob = new Blob([wbout], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `order-${new Date().toISOString().slice(0, 10)}.xlsx`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
   }
 
   const label = flagged.length > 0
